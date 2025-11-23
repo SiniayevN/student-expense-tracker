@@ -133,6 +133,27 @@ export default function ExpenseScreen() {
     setup();
   }, []);
 
+  const filteredExpenses = getFilteredExpenses();
+
+  const overallTotal = filteredExpenses.reduce(
+    (sum, e) => sum + Number(e.amount || 0),
+    0
+  );
+
+  const categoryTotals = filteredExpenses.reduce((acc, e) => {
+    const cat = e.category || 'Uncategorized';
+    const amt = Number(e.amount || 0);
+    acc[cat] = (acc[cat] || 0) + amt;
+    return acc;
+  }, {});
+
+  const filterLabel =
+    filter === 'All'
+      ? 'All'
+      : filter === 'Week'
+      ? 'This Week'
+      : 'This Month';
+
   return (
     <SafeAreaView style={styles.container}>
       <Text style={styles.heading}>Student Expense Tracker</Text>
@@ -141,6 +162,28 @@ export default function ExpenseScreen() {
         <Button title="All" onPress={() => setFilter('All')} />
         <Button title="This Week" onPress={() => setFilter('Week')} />
         <Button title="This Month" onPress={() => setFilter('Month')} />
+      </View>
+
+      <View style={styles.analyticsContainer}>
+        <Text style={styles.analyticsHeading}>
+          Total Spending ({filterLabel}): ${overallTotal.toFixed(2)}
+        </Text>
+
+        {Object.keys(categoryTotals).length > 0 && (
+          <View style={styles.categoryTotals}>
+            <Text style={styles.analyticsSubheading}>
+              By Category ({filterLabel}):
+            </Text>
+            {Object.entries(categoryTotals).map(([cat, total]) => (
+              <View key={cat} style={styles.analyticsRow}>
+                <Text style={styles.analyticsCategory}>{cat}</Text>
+                <Text style={styles.analyticsAmount}>
+                  ${total.toFixed(2)}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
       </View>
 
       <View style={styles.form}>
@@ -170,7 +213,7 @@ export default function ExpenseScreen() {
       </View>
 
       <FlatList
-        data={getFilteredExpenses()}
+        data={filteredExpenses}
         keyExtractor={(item) => item.id.toString()}
         renderItem={renderExpense}
         ListEmptyComponent={
@@ -209,6 +252,40 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     marginBottom: 12,
+  },
+  analyticsContainer: {
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: '#1f2937',
+    borderRadius: 8,
+  },
+  analyticsHeading: {
+    color: '#fbbf24',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  analyticsSubheading: {
+    color: '#e5e7eb',
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  categoryTotals: {
+    marginTop: 4,
+  },
+  analyticsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 2,
+  },
+  analyticsCategory: {
+    color: '#e5e7eb',
+    fontSize: 13,
+  },
+  analyticsAmount: {
+    color: '#fbbf24',
+    fontSize: 13,
+    fontWeight: '600',
   },
   expenseRow: {
     flexDirection: 'row',
