@@ -19,6 +19,7 @@ export default function ExpenseScreen() {
   const [category, setCategory] = useState('');
   const [note, setNote] = useState('');
   const [filter, setFilter] = useState('All');
+  const [editingExpense, setEditingExpense] = useState(null);
 
   const loadExpenses = async () => {
     const rows = await db.getAllAsync(
@@ -50,6 +51,30 @@ export default function ExpenseScreen() {
       [amountNumber, trimmedCategory, trimmedNote || null, today]
     );
 
+    setAmount('');
+    setCategory('');
+    setNote('');
+
+    loadExpenses();
+  };
+
+  const saveEdit = async () => {
+    if (!editingExpense) return;
+
+    const amountNumber = parseFloat(amount);
+    if (isNaN(amountNumber) || amountNumber <= 0) return;
+
+    const trimmedCategory = category.trim();
+    const trimmedNote = note.trim();
+
+    await db.runAsync(
+      `UPDATE expenses
+       SET amount = ?, category = ?, note = ?, date = ?
+       WHERE id = ?;`,
+      [amountNumber, trimmedCategory, trimmedNote || null, editingExpense.date, editingExpense.id]
+    );
+
+    setEditingExpense(null);
     setAmount('');
     setCategory('');
     setNote('');
@@ -99,7 +124,15 @@ export default function ExpenseScreen() {
   };
 
   const renderExpense = ({ item }) => (
-    <View style={styles.expenseRow}>
+    <TouchableOpacity
+      style={styles.expenseRow}
+      onPress={() => {
+        setEditingExpense(item);
+        setAmount(String(item.amount));
+        setCategory(item.category);
+        setNote(item.note || '');
+      }}
+    >
       <View style={{ flex: 1 }}>
         <Text style={styles.expenseAmount}>
           ${Number(item.amount).toFixed(2)}
@@ -112,7 +145,7 @@ export default function ExpenseScreen() {
       <TouchableOpacity onPress={() => deleteExpense(item.id)}>
         <Text style={styles.delete}>✕</Text>
       </TouchableOpacity>
-    </View>
+    </TouchableOpacity>
   );
 
   useEffect(() => {
@@ -209,7 +242,11 @@ export default function ExpenseScreen() {
           value={note}
           onChangeText={setNote}
         />
-        <Button title="Add Expense" onPress={addExpense} />
+        {editingExpense ? (
+          <Button title="Save Edit" onPress={saveEdit} />
+        ) : (
+          <Button title="Add Expense" onPress={addExpense} />
+        )}
       </View>
 
       <FlatList
