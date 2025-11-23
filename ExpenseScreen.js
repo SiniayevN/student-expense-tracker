@@ -11,65 +11,6 @@ import {
 } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: '#111827' },
-  heading: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: 16,
-  },
-  form: {
-    marginBottom: 16,
-    gap: 8,
-  },
-  input: {
-    padding: 10,
-    backgroundColor: '#1f2937',
-    color: '#fff',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#374151',
-  },
-  expenseRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1f2937',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  expenseAmount: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#fbbf24',
-  },
-  expenseCategory: {
-    fontSize: 14,
-    color: '#e5e7eb',
-  },
-  expenseNote: {
-    fontSize: 12,
-    color: '#9ca3af',
-  },
-  delete: {
-    color: '#f87171',
-    fontSize: 20,
-    marginLeft: 12,
-  },
-  empty: {
-    color: '#9ca3af',
-    marginTop: 24,
-    textAlign: 'center',
-  },
-  footer: {
-    textAlign: 'center',
-    color: '#6b7280',
-    marginTop: 12,
-    fontSize: 12,
-  },
-});
-
 export default function ExpenseScreen() {
   const db = useSQLiteContext();
 
@@ -77,6 +18,7 @@ export default function ExpenseScreen() {
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('');
   const [note, setNote] = useState('');
+  const [filter, setFilter] = useState('All');
 
   const loadExpenses = async () => {
     const rows = await db.getAllAsync(
@@ -88,27 +30,72 @@ export default function ExpenseScreen() {
   const addExpense = async () => {
     const amountNumber = parseFloat(amount);
 
-    if (isNaN(amountNumber) || amountNumber <= 0) return;
+    if (isNaN(amountNumber) || amountNumber <= 0) {
+      // Basic validation: ignore invalid or non-positive amounts
+      return;
+    }
 
     const trimmedCategory = category.trim();
     const trimmedNote = note.trim();
 
-    if (!trimmedCategory) return;
+    if (!trimmedCategory) {
+      // Category is required
+      return;
+    }
+
+    const today = new Date().toISOString().split('T')[0];
 
     await db.runAsync(
-      'INSERT INTO expenses (amount, category, note) VALUES (?, ?, ?);',
-      [amountNumber, trimmedCategory, trimmedNote || null]
+      'INSERT INTO expenses (amount, category, note, date) VALUES (?, ?, ?, ?);',
+      [amountNumber, trimmedCategory, trimmedNote || null, today]
     );
 
     setAmount('');
     setCategory('');
     setNote('');
+
     loadExpenses();
   };
 
   const deleteExpense = async (id) => {
     await db.runAsync('DELETE FROM expenses WHERE id = ?;', [id]);
     loadExpenses();
+  };
+
+  const getFilteredExpenses = () => {
+    if (filter === 'All') return expenses;
+
+    const now = new Date();
+
+    if (filter === 'Week') {
+      const startOfWeek = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() - now.getDay()
+      );
+      const endOfWeek = new Date(
+        startOfWeek.getFullYear(),
+        startOfWeek.getMonth(),
+        startOfWeek.getDate() + 7
+      );
+
+      return expenses.filter((e) => {
+        const d = new Date(e.date);
+        return d >= startOfWeek && d < endOfWeek;
+      });
+    }
+
+    if (filter === 'Month') {
+      const month = now.getMonth();
+      const year = now.getFullYear();
+
+      return expenses.filter((e) => {
+        const d = new Date(e.date);
+        return d.getFullYear() === year && d.getMonth() === month;
+      });
+    }
+
+    return expenses;
   };
 
   const renderExpense = ({ item }) => (
@@ -119,6 +106,7 @@ export default function ExpenseScreen() {
         </Text>
         <Text style={styles.expenseCategory}>{item.category}</Text>
         {item.note ? <Text style={styles.expenseNote}>{item.note}</Text> : null}
+        <Text style={styles.expenseDate}>{item.date}</Text>
       </View>
 
       <TouchableOpacity onPress={() => deleteExpense(item.id)}>
@@ -134,7 +122,8 @@ export default function ExpenseScreen() {
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           amount REAL NOT NULL,
           category TEXT NOT NULL,
-          note TEXT
+          note TEXT,
+          date TEXT NOT NULL
         );
       `);
 
@@ -147,6 +136,12 @@ export default function ExpenseScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <Text style={styles.heading}>Student Expense Tracker</Text>
+
+      <View style={styles.filterRow}>
+        <Button title="All" onPress={() => setFilter('All')} />
+        <Button title="This Week" onPress={() => setFilter('Week')} />
+        <Button title="This Month" onPress={() => setFilter('Month')} />
+      </View>
 
       <View style={styles.form}>
         <TextInput
@@ -175,7 +170,7 @@ export default function ExpenseScreen() {
       </View>
 
       <FlatList
-        data={expenses}
+        data={getFilteredExpenses()}
         keyExtractor={(item) => item.id.toString()}
         renderItem={renderExpense}
         ListEmptyComponent={
@@ -189,3 +184,72 @@ export default function ExpenseScreen() {
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1, padding: 16, backgroundColor: '#111827' },
+  heading: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 16,
+  },
+  form: {
+    marginBottom: 16,
+    gap: 8,
+  },
+  input: {
+    padding: 10,
+    backgroundColor: '#1f2937',
+    color: '#fff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#374151',
+  },
+  filterRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 12,
+  },
+  expenseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1f2937',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  expenseAmount: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fbbf24',
+  },
+  expenseCategory: {
+    fontSize: 14,
+    color: '#e5e7eb',
+  },
+  expenseNote: {
+    fontSize: 12,
+    color: '#9ca3af',
+  },
+  expenseDate: {
+    fontSize: 11,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  delete: {
+    color: '#f87171',
+    fontSize: 20,
+    marginLeft: 12,
+  },
+  empty: {
+    color: '#9ca3af',
+    marginTop: 24,
+    textAlign: 'center',
+  },
+  footer: {
+    textAlign: 'center',
+    color: '#6b7280',
+    marginTop: 12,
+    fontSize: 12,
+  },
+});
